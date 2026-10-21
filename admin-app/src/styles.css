@@ -1,0 +1,222 @@
+:root {
+  --bg: #0e1420;
+  --panel: #17203a;
+  --panel-2: #1e2a4a;
+  --text: #eaf2ff;
+  --muted: #93a4c8;
+  --accent: #0a6cff;
+  --danger: #ff5c5c;
+  --border: #2a3b57;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  font-family: system-ui, -apple-system, 'Segoe UI', sans-serif;
+  background: var(--bg);
+  color: var(--text);
+}
+
+.login {
+  max-width: 360px;
+  margin: 80px auto;
+  padding: 32px;
+  background: var(--panel);
+  border-radius: 16px;
+  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.4);
+}
+
+.login h1 {
+  font-size: 20px;
+  margin: 0 0 20px;
+  text-align: center;
+}
+
+.login form,
+.editor,
+.slot-form {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+input,
+select,
+textarea {
+  padding: 10px 12px;
+  border: 1px solid #2a3b57;
+  border-radius: 10px;
+  background: var(--panel-2);
+  color: var(--text);
+  font-size: 14px;
+}
+
+textarea {
+  resize: vertical;
+}
+
+button {
+  padding: 10px 14px;
+  border: none;
+  border-radius: 10px;
+  background: var(--accent);
+  color: #fff;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+button:hover {
+  filter: brightness(1.1);
+}
+
+button.danger {
+  background: var(--danger);
+}
+
+.error {
+  background: rgba(255, 92, 92, 0.15);
+  border: 1px solid var(--danger);
+  color: #ffc1c1;
+  padding: 10px 12px;
+  border-radius: 10px;
+  font-size: 14px;
+}
+
+.page {
+  max-width: 960px;
+  margin: 0 auto;
+  padding: 24px 16px;
+}
+
+.page header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 16px;
+}
+
+.page header h1 {
+  font-size: 22px;
+  margin: 0;
+}
+
+.who {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.who button {
+  background: var(--panel-2);
+}
+
+.toolbar {
+  display: flex;
+  gap: 10px;
+  margin-bottom: 16px;
+}
+
+.tabs {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 16px;
+  flex-wrap: wrap;
+}
+
+.tabs button {
+  background: var(--panel-2);
+  border: 1px solid var(--border);
+}
+
+.tabs button.active {
+  background: var(--accent);
+}
+
+.row {
+  display: flex;
+  gap: 10px;
+}
+
+.row > div {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.muted {
+  color: var(--muted);
+  padding: 10px 0;
+}
+
+.badge {
+  background: rgba(255, 170, 0, 0.2);
+  color: #ffc966;
+  border-radius: 6px;
+  padding: 2px 8px;
+  font-size: 12px;
+  margin-left: 6px;
+}
+
+.cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 12px;
+}
+
+.card {
+  background: var(--panel);
+  border-radius: 14px;
+  padding: 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  border: 1px solid var(--border);
+}
+
+.card-title {
+  font-weight: 700;
+  font-size: 15px;
+}
+
+.card-sub {
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.card-actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 6px;
+  flex-wrap: wrap;
+}
+
+.card-actions button {
+  font-size: 13px;
+  padding: 7px 10px;
+  background: var(--panel-2);
+}
+
+.editor,
+.slot-form {
+  background: var(--panel);
+  padding: 20px;
+  border-radius: 14px;
+  margin-bottom: 16px;
+  border: 1px solid var(--border);
+}
+
+.editor label {
+  font-size: 13px;
+  color: var(--muted);
+}
+
+.slot-form {
+  flex-direction: row;
+  flex-wrap: wrap;
+  align-items: end;
+}

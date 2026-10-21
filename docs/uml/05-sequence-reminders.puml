@@ -1,0 +1,27 @@
+@startuml
+title Sequence — напоминания: бот опрашивает backend и шлёт уведомление
+
+participant "Бот\n(setInterval 60 c)" as B
+participant "Backend API" as API
+database "PostgreSQL" as DB
+participant "Клиент MAX" as U
+
+B -> API: GET /api/reminders/due?now=<ISO+MSK>
+activate API
+API -> DB: get_due_reminders(now)\n(sent=false И remindAt <= now)
+DB --> API: Reminder[]
+API --> B: { items:[{id,userId,slotId,remindAt}] }
+deactivate API
+
+loop for each reminder
+  B -> U: sendMessageToUser(userId, «⏰ скоро тренировка», кнопка menu:my)
+end
+
+B -> API: POST /api/reminders/sent { ids:[...] }
+activate API
+API -> DB: mark_reminder_sent(ids) → sent=true
+API --> B: 204
+deactivate API
+
+note over B: создание напоминания: POST /api/reminders\n{slotId} → remindAt = startTime − 3 часа (МСК)
+@enduml

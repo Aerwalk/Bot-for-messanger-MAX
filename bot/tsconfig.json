@@ -1,0 +1,12 @@
+{
+  "extends": "../tsconfig.base.json",
+  "compilerOptions": {
+    "noEmit": true,
+    "outDir": "dist",
+    "rootDir": "src",
+    "paths": {
+      "@sport-nearby/shared": ["../shared/src"]
+    }
+  },
+  "include": ["src"]
+}

@@ -1,0 +1,67 @@
+@startuml
+left to right direction
+skinparam componentStyle rectangle
+skinparam shadowing false
+title Component — «Спорт рядом»
+
+actor "Пользователь MAX" as U
+actor "Организатор" as Org
+actor "Клиент MAX" as MaxClient
+
+package "MAX Platform" {
+  component "MAX Bot API\n(@maxhub/max-bot-api)" as MaxApi
+}
+
+component "Бот — чат\n(bot: Node.js + tsx)" as Bot {
+  component "Сценарий\n(commands / actions)" as BotCtx
+  component "Память состояния\n(userChatMap, searchState,\nlastResults, onlyAvailable, userGeo)" as BotState
+  component "apiFetch HTTP клиент\n(x-user-id, x-demo-name)" as BotApi
+  component "pollReminders\n(60 c interval)" as BotPoll
+}
+
+component "Бэкенд — FastAPI\n(backend: Python 3.12, uvicorn :8080)" as Backend {
+  component "main.py\n(endpoints /api/*, статика SPA)" as Main
+  component "admin.py\n(router /api/admin/*, Bearer)" as Admin
+  component "db.py\n(доменные операции)" as Db
+  component "models.py\n(SQLAlchemy 2.0)" as Models
+  component "seed.py\n(демо-данные)" as Seed
+  component "auth.py\n(initData HMAC-SHA256)" as Auth
+  component "config.py\n(env: PORT, DEMO_MODE, SERVE_STATIC...)" as Cfg
+}
+
+database "PostgreSQL 16\n(db container, sport/sport)" as Pg
+
+component "Мини-приложение MAX\n(React + max-ui, Vite)" as MiniApp {
+  component "pages: Home / Results /\nActivity / Register / Success /\nMy / Profile" as MaPages
+  component "api.ts\n(resolveSession, request, track)" as MaApi
+  component "bridge.ts\n(WebApp initData, BackButton, openLink)" as MaBridge
+  component "format.ts / store.ts\n(МСК, localStorage-префы)" as MaUtils
+}
+
+component "Админка — SPA\n(admin-app: nginx, :8081→80)" as AdminApp {
+  component "App.tsx state machine\n(login/list/edit/slots/sports/\nfacilities/coaches/registrations)" as AdminUI
+  component "api.ts\n(Bearer-токен, /api/admin/*)" as AdminApi
+}
+
+MaxClient -up-> MaxApi
+U -down-> MaxApi
+MaxClient --> MiniApp : открывает SPA\n(?startapp=payload)
+MaxApi <--> Bot : Bot Long Polling / webhook
+BotCtx ..> BotState : читает/пишет
+BotCtx --> BotApi
+BotPoll --> BotApi : GET /api/reminders/due
+BotApi --> Main : REST /api/*
+Main --> Db
+Admin --> Db
+Db --> Models
+Models --> Pg
+Seed ..> Models : демо-сид (8 спортов,\n10 локаций, 12 активностей, слоты 7 дней)
+Auth ..> Main : проверка x-init-data
+Main --> MiniApp : раздаёт статику SPA\n(если SERVE_STATIC=true)
+MiniApp --> MaApi
+MaApi --> Main : REST /api/* (x-user-id)
+AdminApp --> AdminApi
+AdminApi --> Admin : REST /api/admin/* (Bearer)
+Org --> AdminApp
+
+@enduml

@@ -1,0 +1,47 @@
+@startuml
+title Deployment — docker compose «Спорт рядом»
+
+skinparam shadowing false
+skinparam nodeStyle rectangle
+
+node "Хост (Docker)" as Host {
+  node "db\n(postgres:16-alpine)" as NDb {
+    file "volume sport-nearby-pgdata:\n/var/lib/postgresql/data (PostgreSQL 16)" as VDb
+  }
+  node "backend\n(python:3.12-slim + uvicorn)" as NBack {
+    file "env: PORT=8080, DEMO_MODE=true,\nSERVE_STATIC=false, DATABASE_URL→db,\nADMIN_LOGIN/ADMIN_PASSWORD" as VBack
+    file "volume sport-nearby-data:\n/data (данные если без Postgres)" as VData
+  }
+  node "bot\n(node:22-slim + tsx)" as NBot {
+    file "env: MAX_BOT_TOKEN, BACKEND_URL=http://backend:8080,\nBOT_POLL_INTERVAL_MS=60000" as VBot
+  }
+  node "admin\n(nginx:alpine)" as NAdmin {
+    file "nginx: SPA admin-app/dist\n+ proxy /api/ → backend:8080" as VNginx
+  }
+}
+
+node "Внешний мир" as Ext {
+  node "Клиент MAX\n(мобильный/десктоп)" as Cli
+  node "MAX Bot API" as MaxSrv
+}
+
+Ext ..> Host : «открывается извне»
+
+NDb <---> NBack : "DATABASE_URL\npostgresql+psycopg://sport:**@db:5432/sport"
+NBack <---> NBot : "GET /api/reminders/due\nhttp://backend:8080 (исходящие)"
+NBack <---> NAdmin : "nginx proxy : /api/ → backend:8080"
+NBack --> VData
+NDb --> VDb
+
+NBack -- NAdmin : REST /api/* : published\n(8080:8080 — backend, 8081:80 — admin)
+NBot --> MaxSrv : "Bot Long Polling / webhook\n(outbound)"
+Cli --> MaxSrv
+Cli ..> NBack : "мини-апп: требует публичный HTTPS\n(tunnel / внешний хостинг; в docker НЕ раздаётся — SERVE_STATIC=false)"
+
+note bottom of Host
+  depends_on: backend ← db (service_healthy);
+  admin/bot ← backend (service_healthy);
+  restart: unless-stopped; healthcheck для db/backend
+end note
+
+@enduml

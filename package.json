@@ -1,0 +1,30 @@
+{
+  "name": "sport-nearby",
+  "version": "0.2.0",
+  "private": true,
+  "description": "Спорт рядом — MVP мини-приложения для MAX: поиск спортивных активностей рядом и запись на занятия",
+  "engines": {
+    "node": ">=20"
+  },
+  "workspaces": [
+    "shared",
+    "mini-app",
+    "admin-app",
+    "bot"
+  ],
+  "scripts": {
+    "dev:mini": "npm run dev -w mini-app",
+    "dev:admin": "npm run dev -w admin-app",
+    "dev:bot": "npm run dev -w bot",
+    "build:mini": "npm run build -w mini-app",
+    "build:admin": "npm run build -w admin-app",
+    "start:bot": "npm run start -w bot",
+    "typecheck": "npm run typecheck -w shared && npm run typecheck -w bot && npm run typecheck -w mini-app && npm run typecheck -w admin-app",
+    "dev:backend": "cd backend && ..\\.venv\\Scripts\\python.exe -m uvicorn app.main:app --reload --host 127.0.0.1 --port 8080",
+    "start:backend": "cd backend && ..\\.venv\\Scripts\\python.exe -m uvicorn app.main:app --host 127.0.0.1 --port 8080",
+    "seed:backend": "cd backend && ..\\.venv\\Scripts\\python.exe -m app.seed --run",
+    "reset:backend": "cd backend && ..\\.venv\\Scripts\\python.exe -m app.reset --run",
+    "test:backend": ".venv\\Scripts\\python.exe -m pytest backend/tests -v",
+    "test": "npm run test:backend"
+  }
+}

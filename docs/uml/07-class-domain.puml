@@ -1,0 +1,210 @@
+@startuml
+title Class — доменная модель «Спорт рядом» (SQLAlchemy / shared types)
+
+skinparam classAttributeIconSize 0
+skinparam shadowing false
+
+class Sport {
+  id : PK
+  name : string
+  emoji : string
+  activities : 1:N
+}
+
+class SportFacility {
+  id : PK
+  name : string
+  type : string
+  address : string
+  city : string
+  district : string
+  latitude : float
+  longitude : float
+  description : string?
+  source : string
+  sourceUpdatedAt : datetime?
+}
+
+class Activity {
+  id : PK
+  facilityId : FK -> facilities
+  sportId : FK -> sports
+  type : section|place|training|competition
+  title : string
+  description : string
+  ageCategory : child|teen|adult|senior|any
+  skillLevel : beginner|intermediate|pro|any
+  price : number
+  priceNote : string?
+  organizer : string
+  contact : string
+  status : active|inactive
+  createdBy : FK -> organizers?
+  createdAt / updatedAt
+}
+
+note top of Activity
+  таблица activities
+  SQLAlchemy 2.0 (Mapped)
+end note
+
+class ScheduleSlot {
+  id : PK
+  activityId : FK -> activities
+  date : YYYY-MM-DD
+  startTime : HH:mm
+  endTime : HH:mm
+  capacity : int
+  registeredCount : int
+  status : scheduled|cancelled
+  coach : string
+  coachId : FK -> coaches?
+  durationMin : int
+}
+
+class Registration {
+  id : PK
+  userId : string (не FK)
+  slotId : FK -> slots
+  name : string
+  phone : string?
+  status : confirmed|cancelled
+  createdAt : datetime
+  canceledAt : datetime?
+}
+
+class UserProfile {
+  id : PK
+  name : string?
+  city : string?
+  district : string?
+  ageCategory : string?
+  preferredSports : JSON list?
+  preferredTime : string?
+  latitude : float?
+  longitude : float?
+  createdAt / updatedAt
+}
+
+class Favorite {
+  id : PK
+  userId : string
+  activityId : FK -> activities
+  createdAt : datetime
+}
+
+class Reminder {
+  id : PK
+  userId : string
+  slotId : FK -> slots
+  remindAt : datetime (start − 3h, МСК)
+  sent : bool
+  createdAt : datetime
+}
+
+class Coach {
+  id : PK
+  organizerId : FK -> organizers?
+  name : string
+  sportId : FK -> sports?
+  bio : string?
+  createdAt : datetime
+}
+
+class Rating {
+  id : PK
+  userId : string
+  slotId : FK -> slots
+  activityId : FK -> activities
+  coachId : FK -> coaches?
+  coachName : string
+  activityScore : 1..5
+  coachScore : 1..5?
+  comment : string?
+  createdAt : datetime
+  <<unique (userId, slotId)>>
+}
+
+class RatingAggregate <<value object>> {
+  avg : number (1 знак)
+  count : int
+}
+
+class Organizer {
+  id : PK
+  login : unique
+  password_hash : string (bcrypt)
+  name : string
+  createdAt : datetime
+}
+
+class AdminSession {
+  id : PK
+  organizerId : FK -> organizers
+  token : unique (opaque)
+  expiresAt : datetime (TTL 86400 c)
+  createdAt : datetime
+}
+
+class AnalyticsEvent {
+  id : PK
+  userId : string
+  name : EventName
+  payload : JSON?
+  createdAt : datetime
+}
+
+' ---------- Композитные DTO (shared) ----------
+
+class ActivitySummary <<DTO>> {
+  activity : Activity
+  facility : SportFacility
+  sport : Sport
+  distanceKm : float (haversine)
+  nextSlot : ScheduleSlot?
+  openSlots : int
+  activityRating : RatingAggregate?
+}
+
+class ActivityDetail <<DTO>> {
+  schedule : ScheduleSlot[]
+}
+
+class SlotView <<DTO>> {
+  state : open|full|cancelled|past|closed
+  seatsFree : int
+}
+
+class RegistrationView <<DTO>> {
+  registration : Registration
+  slot : SlotView
+  activity : Activity
+  facility : SportFacility
+  sport : Sport
+  rating : Rating?
+}
+
+' ---------- Связи ----------
+
+Sport "1" *-- "N" Activity
+SportFacility "1" *-- "N" Activity
+Activity "1" *-- "N" ScheduleSlot
+ScheduleSlot "1" *-- "N" Registration
+ScheduleSlot "0..1" ..> "1" Coach : coachId
+Activity "1" *-- "N" Favorite
+ScheduleSlot "1" *-- "N" Reminder
+ScheduleSlot "1" *-- "N" Rating : оценивается
+Rating ..> Coach : coachId (для coachScore)
+Activity "1" *-- "N" Rating : activityScore+
+UserProfile ..> Registration : userId
+UserProfile ..> Favorite : userId
+UserProfile ..> Reminder : userId
+UserProfile ..> Rating : userId
+Organizer "1" *-- "N" Coach : создаёт
+Organizer "1" *-- "N" AdminSession
+Organizer "1" *-- "N" Activity : createdBy
+UserProfile ..> AnalyticsEvent : userId
+ActivitySummary ..> ActivityDetail : расширяет
+ScheduleSlot ..> SlotView : + state/seatsFree
+
+@enduml

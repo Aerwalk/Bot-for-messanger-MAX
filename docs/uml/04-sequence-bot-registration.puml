@@ -1,0 +1,56 @@
+@startuml
+title Sequence — запись клиента на занятие через бота
+
+actor "Пользователь MAX" as U
+participant "Бот\n(bot/src/index.ts)" as B
+participant "Backend API\n(FastAPI)" as API
+database "PostgreSQL" as DB
+
+U -> B: /start (или нажатие кнопки «Поиск»)
+activate B
+B -> API: POST /api/me\n(x-user-id, x-demo-name)
+activate API
+API -> DB: resolve_or_create_user(userId, name)
+DB --> API: user
+API --> B: { user }
+deactivate API
+B --> U: Главное меню (inlineKeyboard)
+deactivate B
+
+U -> B: 🔍 Поиск → s:sport:*, s:day:*, s:tod:*, s:dist:*
+activate B
+B -> API: GET /api/activities\n?lat&lng&sportIds&day&timeOfDay&maxDistanceKm
+activate API
+API -> DB: get_activities(filters) + haversine + activityRating\n+ nextSlot.coachRating
+DB --> API: ActivitySummary[]
+API --> B: { items }
+deactivate API
+B --> U: Список результатов (до 10 карточек)
+deactivate B
+
+U -> B: act:{activityId} — карточка занятия
+activate B
+B -> API: GET /api/activities/{activityId}\n?lat&lng
+activate API
+API -> DB: get_activity_detail() — schedule + тренеры + оценки
+DB --> API: ActivityDetail
+API --> B: { activity, facility, sport, schedule,\nactivityRating, nextSlot.coachRating }
+deactivate API
+B --> U: Карточка: ⭐ оценка занятия,\n👤 тренер слотов, 📍, 💰, маршрут
+deactivate B
+
+U -> B: reg:{activityId}:{slotId} — подтверждение
+activate B
+B -> API: GET /api/activities/{activityId}
+API --> B: detail (слот + тренер + coachRating)
+B --> U: «Подтвердите запись?»\n(тренер, цена, 🚶 маршрут)
+U -> B: regok:{slotId}
+B -> API: POST /api/registrations\n{ slotId, name, consent: true }
+activate API
+API -> DB: create_registration: DUPLICATE? SLOT_FULL?\ncancelled? → insert + registeredCount++
+API --> B: RegistrationView (slot + coachRating)
+deactivate API
+B --> U: ✅ Вы записаны!\n(🧭 координаты, 🚶 маршрут, 📋 мои записи)
+deactivate B
+
+@enduml

@@ -1,0 +1,49 @@
+@startuml
+title Sequence — мини-приложение: поиск → запись → напоминание
+
+participant "WebApp Bridge\n(window.WebApp)" as B
+participant "Мини-приложение\n(React SPA)" as MA
+participant "Backend API" as API
+database "PostgreSQL" as DB
+
+MA -> B: initData / initDataUnsafe (user, chat, start_param)
+B --> MA: initData (для валидации x-init-data)
+MA -> API: POST /api/me { initData } → resolveSession
+activate API
+API -> DB: resolve_or_create_user
+DB --> API
+API --> MA: { user, demo, validated }
+deactivate API
+
+MA -> API: GET /api/activities?lat&lng&{фильтры}
+activate API
+API -> DB: get_activities
+DB --> API
+API --> MA: ActivitySummary[]
+deactivate API
+MA --> User: ResultsPage
+
+MA -> API: GET /api/activities/{id}
+activate API
+API -> DB: get_activity_detail
+DB --> API
+API --> MA: ActivityDetail (schedule + тренеры + оценки)
+deactivate API
+
+MA -> API: POST /api/registrations { slotId, name, consent }
+activate API
+API -> DB: create_registration (проверки)
+DB --> API
+API --> MA: RegistrationView
+deactivate API
+
+alt включить напоминание
+  MA -> API: POST /api/reminders { slotId }
+  activate API
+  API -> DB: create_reminder (start − 3h)
+  API --> MA: 201
+  deactivate API
+end
+
+note over MA: Session хранит user.id\nвсе запросы несут x-user-id header
+@enduml

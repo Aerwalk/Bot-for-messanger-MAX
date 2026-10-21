@@ -1,0 +1,56 @@
+@startuml
+title Activity — клиентский путь мини-приложения MAX
+
+start
+:Открыть мини-приложение\n(кнопка в чате бота / диплинк ?startapp=);
+:resolveSession — POST /api/me\n(инициализация сессии);
+:SESSION: initData от WebApp bridge → x-user-id;
+
+if (маршрут) then (/ — Профиль/Поиск)
+  :TabBar: Поиск / Мои записи / Профиль;
+endif
+
+switch (экран)
+case (Поиск /)
+  :Фильтры (спорт, день, время, радиус) — localStorage;
+  :track('search_started');
+  :GET /api/activities?lat&lng&filtrs;
+  :results_viewed;
+  :ResultsPage — список занятий;\n(оценка, тренер, расстояние);
+  case (Карточка /activity/:id)
+    :GET /api/activities/{id};
+    :activity_opened, schedule_opened;
+    :расписание: тренеры, оценки, цена;
+    case (Регистрация /activity/:id/register/:slotId)
+      :POST /api/registrations\n{slotId, name, consent};
+      if (успех?) then (да)
+        :registration_completed;
+        :SuccessPage — reminder кнопка;
+        if (включить напоминание?) then (да)
+          :POST /api/reminders {slotId};
+          :reminder_enabled;
+        endif
+      else (нет)
+        :registration_failed;
+      endif
+case (Мои записи /my)
+  :GET /api/me/registrations + GET /api/me/ratings;
+  if (отменить?) then (да)
+    :POST /api/registrations/{id}/cancel;
+    :registration_cancelled;
+  endif
+  if (оценить занятие?) then (да)
+    :POST /api/ratings\n{slotId, activityScore, coachScore?, comment?};
+    :rating_submitted;
+  endif
+case (Профиль /profile)
+  :PATCH /api/me\n{district, preferredSports, latitude?, longitude?};
+  if (запросить геопозицию?) then (да)
+    :navigator.geolocation.getCurrentPosition;\n(MAX Bridge гео-API не имеет);
+    :track('geo_requested');
+  endif
+  :filter_applied;
+endswitch
+
+stop
+@enduml

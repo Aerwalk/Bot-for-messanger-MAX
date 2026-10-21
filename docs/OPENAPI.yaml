@@ -1,0 +1,1141 @@
+openapi: 3.0.3
+info:
+  title: Спорт рядом — API MVP
+  version: 0.1.0
+  description: |
+    Backend мини-приложения «Спорт рядом» (хакатон MAX, трек «Досуг и развлечения»).
+    MVP-контур: поиск активностей рядом → карточка с расписанием → запись на занятие →
+    подтверждение → напоминания → оценки → аналитика. Отдельный контур `/api/admin/*` —
+    админ-панель организатора (opaque-токен). Все данные демонстрационные.
+  contact:
+    name: Команда «Спорт рядом»
+servers:
+  - url: http://localhost:8080
+    description: Локальная разработка (docker compose up backend)
+tags:
+  - name: Справочники
+  - name: Поиск
+  - name: Пользователь
+  - name: Записи
+  - name: Оценки
+  - name: Тренеры
+  - name: Избранное
+  - name: Напоминания
+  - name: Аналитика
+  - name: Администратор
+
+paths:
+  /api/health:
+    get:
+      summary: Состояние сервиса
+      tags: [Справочники]
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  ok: { type: boolean }
+                  demoMode: { type: boolean }
+                  source: { type: string }
+                  time: { type: string, format: date-time }
+
+  /api/sports:
+    get:
+      summary: Список видов спорта
+      tags: [Справочники]
+      responses:
+        '200':
+          description: Список
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  items:
+                    type: array
+                    items: { $ref: '#/components/schemas/Sport' }
+
+  /api/facilities:
+    get:
+      summary: Спортивные объекты
+      tags: [Справочники]
+      parameters:
+        - { name: id, in: query, schema: { type: string }, description: 'Отфильтровать по id' }
+      responses:
+        '200':
+          description: Список объектов
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  items:
+                    type: array
+                    items: { $ref: '#/components/schemas/SportFacility' }
+        '404': { $ref: '#/components/responses/NotFound' }
+
+  /api/activities:
+    get:
+      summary: Поиск активностей рядом
+      description: Возвращает активности с ближайшим открытым слотом и дистанцией от точки.
+      tags: [Поиск]
+      parameters:
+        - { name: lat, in: query, schema: { type: number }, description: 'Широта точки пользователя (по умолчанию центр Москвы)' }
+        - { name: lng, in: query, schema: { type: number }, description: 'Долгота (по умолчанию центр Москвы)' }
+        - { name: sportIds, in: query, schema: { type: string }, description: 'CSV видов спорта: football,basketball,…' }
+        - { name: type, in: query, schema: { $ref: '#/components/schemas/ActivityType' } }
+        - { name: ageCategory, in: query, schema: { $ref: '#/components/schemas/AgeCategory' } }
+        - { name: skillLevel, in: query, schema: { $ref: '#/components/schemas/SkillLevel' } }
+        - { name: maxDistanceKm, in: query, schema: { type: number }, description: 'Радиус поиска, км' }
+        - { name: day, in: query, schema: { $ref: '#/components/schemas/DayFilter' } }
+        - { name: timeOfDay, in: query, schema: { $ref: '#/components/schemas/TimeOfDay' } }
+      responses:
+        '200':
+          description: Найденные активности
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  items:
+                    type: array
+                    items: { $ref: '#/components/schemas/ActivitySummary' }
+                  count: { type: integer }
+                  params:
+                    type: object
+                    properties:
+                      lat: { type: number }
+                      lng: { type: number }
+
+  /api/activities/{id}:
+    get:
+      summary: Карточка активности с расписанием
+      tags: [Поиск]
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string } }
+        - { name: lat, in: query, schema: { type: number } }
+        - { name: lng, in: query, schema: { type: number } }
+      responses:
+        '200':
+          description: Детальная карточка
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ActivityDetail' }
+        '404': { $ref: '#/components/responses/NotFound' }
+
+  /api/activities/{id}/schedule:
+    get:
+      summary: Расписание слотов активности
+      tags: [Поиск]
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string } }
+        - { name: dateFrom, in: query, schema: { type: string, format: date } }
+        - { name: dateTo, in: query, schema: { type: string, format: date } }
+      responses:
+        '200':
+          description: Список слотов
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  items:
+                    type: array
+                    items: { $ref: '#/components/schemas/ScheduleSlot' }
+
+  /api/me:
+    post:
+      summary: Сессия/профиль пользователя
+      description: |
+        Создаёт или находит профиль. В боевом режиме в body передаётся `initData` из MAX Bridge.
+        В demo-режиме идентификатор берётся из заголовка `x-user-id`.
+      tags: [Пользователь]
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                initData: { type: string, description: 'initData мини-приложения MAX' }
+                demoName: { type: string }
+      responses:
+        '200':
+          description: Профиль
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  user: { $ref: '#/components/schemas/UserProfile' }
+                  demo: { type: boolean }
+                  validated: { type: boolean }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+    patch:
+      summary: Обновление профиля
+      tags: [Пользователь]
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                name: { type: string }
+                city: { type: string }
+                district: { type: string }
+                ageCategory: { $ref: '#/components/schemas/AgeCategory' }
+                preferredSports:
+                  type: array
+                  items: { type: string }
+                preferredTime: { $ref: '#/components/schemas/TimeOfDay' }
+                latitude: { type: number, description: 'Геолокация пользователя (широта)' }
+                longitude: { type: number, description: 'Геолокация пользователя (долгота)' }
+      responses:
+        '200':
+          description: Обновлённый профиль
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  user: { $ref: '#/components/schemas/UserProfile' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+
+  /api/me/registrations:
+    get:
+      summary: Записи пользователя
+      tags: [Записи]
+      responses:
+        '200':
+          description: Список записей
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  items:
+                    type: array
+                    items: { $ref: '#/components/schemas/RegistrationView' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+
+  /api/registrations:
+    post:
+      summary: Создание записи на занятие
+      tags: [Записи]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [slotId, name, consent]
+              properties:
+                slotId: { type: string }
+                name: { type: string, minLength: 2, maxLength: 100 }
+                phone: { type: string }
+                consent: { type: boolean, description: 'Согласие на обработку данных' }
+      responses:
+        '201':
+          description: Создано
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/RegistrationView' }
+        '400': { $ref: '#/components/responses/ValidationError' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409':
+          description: Конфликт (слот заполнен / уже записан / слот отменён)
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorBody' }
+
+  /api/registrations/{id}/cancel:
+    post:
+      summary: Отмена записи
+      tags: [Записи]
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string } }
+      responses:
+        '200':
+          description: Обновлённая запись (status = cancelled)
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/RegistrationView' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+
+  /api/coaches:
+    get:
+      summary: Список тренеров
+      description: Справочник тренеров, создаваемых организатором в админке.
+      tags: [Тренеры]
+      responses:
+        '200':
+          description: Список
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  items:
+                    type: array
+                    items: { $ref: '#/components/schemas/Coach' }
+
+  /api/me/ratings:
+    get:
+      summary: Оценки пользователя
+      tags: [Оценки]
+      responses:
+        '200':
+          description: Список оценок
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  items:
+                    type: array
+                    items: { $ref: '#/components/schemas/Rating' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+
+  /api/ratings:
+    post:
+      summary: Оценить прошедшее занятие
+      description: |
+        Одна оценка на слот на пользователя (409 при попытке повтора).
+        Оценить можно только слот, на который пользователь записан и который уже начался.
+      tags: [Оценки]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [slotId, activityScore]
+              properties:
+                slotId: { type: string }
+                activityScore: { type: integer, minimum: 1, maximum: 5, description: 'Оценка тренировки 1–5' }
+                coachScore: { type: integer, minimum: 1, maximum: 5, description: 'Оценка тренера 1–5 (необязательно)' }
+                comment: { type: string, maxLength: 1000 }
+      responses:
+        '201':
+          description: Оценка сохранена
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Rating' }
+        '400': { $ref: '#/components/responses/ValidationError' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403':
+          description: 'Не записана / занятие ещё не состоялось'
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorBody' }
+        '409': { $ref: '#/components/responses/Conflict' }
+
+  /api/me/favorites:
+    get:
+      summary: Избранное пользователя
+      tags: [Избранное]
+      responses:
+        '200':
+          description: Список
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  items:
+                    type: array
+                    items: { $ref: '#/components/schemas/Favorite' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+
+  /api/favorites:
+    post:
+      summary: Добавить в избранное
+      tags: [Избранное]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [activityId]
+              properties:
+                activityId: { type: string }
+      responses:
+        '201':
+          description: Избранное добавлено (или уже существовало)
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Favorite' }
+        '400': { $ref: '#/components/responses/ValidationError' }
+
+  /api/favorites/{id}:
+    delete:
+      summary: Удалить из избранного
+      tags: [Избранное]
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string } }
+      responses:
+        '204': { description: Удалено }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+
+  /api/reminders:
+    post:
+      summary: Создать напоминание о слоте
+      description: Напоминание придёт в бот за 3 часа до занятия.
+      tags: [Напоминания]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [slotId]
+              properties:
+                slotId: { type: string }
+      responses:
+        '201':
+          description: Напоминание создано
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Reminder' }
+        '400': { $ref: '#/components/responses/ValidationError' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+
+  /api/me/reminders:
+    get:
+      summary: Напоминания пользователя
+      tags: [Напоминания]
+      responses:
+        '200':
+          description: Список
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  items:
+                    type: array
+                    items: { $ref: '#/components/schemas/Reminder' }
+
+  /api/reminders/due:
+    get:
+      summary: Созревшие напоминания (для бота)
+      description: Внутренний контур. Возвращает напоминания с remindAt <= now и неотправленные.
+      tags: [Напоминания]
+      parameters:
+        - { name: now, in: query, schema: { type: string, format: date-time } }
+      responses:
+        '200':
+          description: Список
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  items:
+                    type: array
+                    items: { $ref: '#/components/schemas/Reminder' }
+
+  /api/reminders/sent:
+    post:
+      summary: Отметить напоминания отправленными
+      tags: [Напоминания]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [ids]
+              properties:
+                ids:
+                  type: array
+                  items: { type: string }
+      responses:
+        '204': { description: Обновлено }
+        '400': { $ref: '#/components/responses/ValidationError' }
+
+  /api/events:
+    post:
+      summary: Аналитическое событие (fire-and-forget)
+      tags: [Аналитика]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [name]
+              properties:
+                name: { $ref: '#/components/schemas/EventName' }
+                payload:
+                  type: object
+                  additionalProperties: true
+      responses:
+        '201':
+          description: Принято
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  ok: { type: boolean }
+
+  /api/users/{id}:
+    get:
+      summary: Профиль пользователя
+      tags: [Пользователь]
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string } }
+      responses:
+        '200':
+          description: Профиль
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/UserProfile' }
+        '404': { $ref: '#/components/responses/NotFound' }
+
+  # ---------------------------- Администратор ----------------------------
+
+  /api/admin/login:
+    post:
+      summary: Вход организатора
+      description: Возвращает opaque-токен сессии (Bearer для /api/admin/*).
+      tags: [Администратор]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [login, password]
+              properties:
+                login: { type: string }
+                password: { type: string }
+      responses:
+        '200':
+          description: Токен
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  token: { type: string }
+                  organizer:
+                    type: object
+                    properties:
+                      id: { type: string }
+                      login: { type: string }
+                      name: { type: string }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+
+  /api/admin/me:
+    get:
+      summary: Текущий организатор
+      tags: [Администратор]
+      security:
+        - AdminToken: []
+      responses:
+        '200':
+          description: Профиль организатора
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  organizer:
+                    type: object
+                    properties:
+                      login: { type: string }
+                      name: { type: string }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+
+  /api/admin/activities:
+    get:
+      summary: Список активностей организатора
+      tags: [Администратор]
+      security:
+        - AdminToken: []
+      responses:
+        '200':
+          description: Список (с количеством записей)
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  items:
+                    type: array
+                    items: { $ref: '#/components/schemas/AdminActivity' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+    post:
+      summary: Создать активность
+      tags: [Администратор]
+      security:
+        - AdminToken: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/ActivityWrite' }
+      responses:
+        '201':
+          description: Создано
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Activity' }
+        '400': { $ref: '#/components/responses/ValidationError' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+
+  /api/admin/activities/{id}:
+    parameters:
+      - { name: id, in: path, required: true, schema: { type: string } }
+    patch:
+      summary: Обновить активность
+      tags: [Администратор]
+      security:
+        - AdminToken: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/ActivityWrite' }
+      responses:
+        '200':
+          description: Обновлено
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Activity' }
+        '400': { $ref: '#/components/responses/ValidationError' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+    delete:
+      summary: Удалить активность
+      tags: [Администратор]
+      security:
+        - AdminToken: []
+      responses:
+        '204': { description: Удалено }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+
+  /api/admin/activities/{id}/slots:
+    parameters:
+      - { name: id, in: path, required: true, schema: { type: string } }
+    get:
+      summary: Слоты активности
+      tags: [Администратор]
+      security:
+        - AdminToken: []
+      responses:
+        '200':
+          description: Слоты
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  items:
+                    type: array
+                    items: { $ref: '#/components/schemas/ScheduleSlot' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+    post:
+      summary: Создать слот
+      tags: [Администратор]
+      security:
+        - AdminToken: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [date, startTime, endTime, capacity]
+              properties:
+                date: { type: string, format: date }
+                startTime: { type: string, example: '19:00' }
+                endTime: { type: string, example: '20:30' }
+                capacity: { type: integer, minimum: 1 }
+                coach: { type: string }
+                coachId: { type: string }
+      responses:
+        '201':
+          description: Слот создан
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ScheduleSlot' }
+        '400': { $ref: '#/components/responses/ValidationError' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+
+  /api/admin/activities/{id}/registrations:
+    parameters:
+      - { name: id, in: path, required: true, schema: { type: string } }
+    get:
+      summary: Записи по активности
+      tags: [Администратор]
+      security:
+        - AdminToken: []
+      responses:
+        '200':
+          description: Список записей
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  items:
+                    type: array
+                    items: { $ref: '#/components/schemas/RegistrationView' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+
+  /api/admin/slots/{id}:
+    parameters:
+      - { name: id, in: path, required: true, schema: { type: string } }
+    delete:
+      summary: Удалить слот
+      tags: [Администратор]
+      security:
+        - AdminToken: []
+      responses:
+        '204': { description: Удалено }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+
+  /api/admin/coaches:
+    get:
+      summary: Список тренеров организатора
+      tags: [Администратор]
+      security:
+        - AdminToken: []
+      responses:
+        '200':
+          description: Список
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  items:
+                    type: array
+                    items: { $ref: '#/components/schemas/Coach' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+    post:
+      summary: Создать тренера
+      tags: [Администратор]
+      security:
+        - AdminToken: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [name]
+              properties:
+                name: { type: string }
+                sportId: { type: string }
+                bio: { type: string }
+      responses:
+        '201':
+          description: Создано
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Coach' }
+        '400': { $ref: '#/components/responses/ValidationError' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+
+  /api/admin/coaches/{coach_id}:
+    parameters:
+      - { name: coach_id, in: path, required: true, schema: { type: string } }
+    patch:
+      summary: Обновить тренера
+      tags: [Администратор]
+      security:
+        - AdminToken: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                name: { type: string }
+                sportId: { type: string }
+                bio: { type: string }
+      responses:
+        '200':
+          description: Обновлено
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Coach' }
+        '400': { $ref: '#/components/responses/ValidationError' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+    delete:
+      summary: Удалить тренера
+      tags: [Администратор]
+      security:
+        - AdminToken: []
+      responses:
+        '204': { description: Удалено }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+
+  /api/admin/facilities:
+    get:
+      summary: Справочник объектов
+      tags: [Администратор]
+      security:
+        - AdminToken: []
+      responses:
+        '200':
+          description: Список
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  items:
+                    type: array
+                    items: { $ref: '#/components/schemas/SportFacility' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+    post:
+      summary: Создать объект
+      tags: [Администратор]
+      security:
+        - AdminToken: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/FacilityWrite' }
+      responses:
+        '201':
+          description: Создано
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/SportFacility' }
+        '400': { $ref: '#/components/responses/ValidationError' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+
+  /api/admin/sports:
+    get:
+      summary: Справочник видов спорта
+      tags: [Администратор]
+      security:
+        - AdminToken: []
+      responses:
+        '200':
+          description: Список
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  items:
+                    type: array
+                    items: { $ref: '#/components/schemas/Sport' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+    post:
+      summary: Создать вид спорта
+      tags: [Администратор]
+      security:
+        - AdminToken: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [name]
+              properties:
+                name: { type: string }
+                category: { type: string }
+                emoji: { type: string }
+      responses:
+        '201':
+          description: Создано
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Sport' }
+        '400': { $ref: '#/components/responses/ValidationError' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+
+components:
+  securitySchemes:
+    DemoUserId:
+      type: apiKey
+      in: header
+      name: x-user-id
+      description: 'Demo-режим: идентификатор пользователя без авторизации.'
+    MaxInitData:
+      type: apiKey
+      in: header
+      name: x-init-data
+      description: 'Боевой режим: initData мини-приложения MAX (подписан токеном бота).'
+    AdminToken:
+      type: apiKey
+      in: header
+      name: Authorization
+      description: 'Bearer-токен организатора (opaque-сессия из POST /api/admin/login).'
+  responses:
+    NotFound:
+      description: Объект не найден
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/ErrorBody' }
+    Unauthorized:
+      description: Не передан/непрошёл initData и не включён demo-режим
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/ErrorBody' }
+    ValidationError:
+      description: Некорректный запрос
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/ErrorBody' }
+    Conflict:
+      description: Конфликт состояния
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/ErrorBody' }
+  schemas:
+    ErrorBody:
+      type: object
+      properties:
+        error:
+          type: object
+          properties:
+            code:
+              type: string
+              enum: [NOT_FOUND, SLOT_FULL, DUPLICATE, CANCELLED, ALREADY_CANCELLED, VALIDATION_ERROR, UNAUTHORIZED, INTERNAL]
+            message: { type: string }
+            details: { type: object, additionalProperties: true }
+    Sport:
+      type: object
+      properties:
+        id: { type: string }
+        name: { type: string }
+        emoji: { type: string }
+    SportFacility:
+      type: object
+      properties:
+        id: { type: string }
+        name: { type: string }
+        type: { type: string }
+        address: { type: string }
+        city: { type: string }
+        district: { type: string }
+        latitude: { type: number }
+        longitude: { type: number }
+        description: { type: string }
+        source: { type: string, description: 'Всегда «Демонстрационные данные MVP»' }
+        sourceUpdatedAt: { type: string, format: date-time }
+    Activity:
+      type: object
+      properties:
+        id: { type: string }
+        facilityId: { type: string }
+        sportId: { type: string }
+        type: { $ref: '#/components/schemas/ActivityType' }
+        title: { type: string }
+        description: { type: string }
+        ageCategory: { $ref: '#/components/schemas/AgeCategory' }
+        skillLevel: { $ref: '#/components/schemas/SkillLevel' }
+        price: { type: number }
+        priceNote: { type: string }
+        organizer: { type: string }
+        contact: { type: string }
+        status: { type: string, enum: [active, inactive] }
+    ActivityWrite:
+      type: object
+      description: Поля создания/обновления активности организатором.
+      properties:
+        facilityId: { type: string }
+        sportId: { type: string }
+        type: { $ref: '#/components/schemas/ActivityType' }
+        title: { type: string }
+        description: { type: string }
+        ageCategory: { $ref: '#/components/schemas/AgeCategory' }
+        skillLevel: { $ref: '#/components/schemas/SkillLevel' }
+        price: { type: number }
+        priceNote: { type: string }
+        organizer: { type: string }
+        contact: { type: string }
+        status: { type: string, enum: [active, inactive] }
+    FacilityWrite:
+      type: object
+      description: Поля создания спортивного объекта организатором.
+      properties:
+        name: { type: string }
+        type: { type: string }
+        address: { type: string }
+        city: { type: string }
+        district: { type: string }
+        latitude: { type: number }
+        longitude: { type: number }
+        description: { type: string }
+    AdminActivity:
+      type: object
+      description: Активность организатора с числом записей.
+      properties:
+        activity: { $ref: '#/components/schemas/Activity' }
+        facility: { $ref: '#/components/schemas/SportFacility' }
+        sport: { $ref: '#/components/schemas/Sport' }
+        registeredCount: { type: integer }
+    ActivitySummary:
+      type: object
+      properties:
+        activity: { $ref: '#/components/schemas/Activity' }
+        facility: { $ref: '#/components/schemas/SportFacility' }
+        sport: { $ref: '#/components/schemas/Sport' }
+        distanceKm: { type: number }
+        nextSlot: { $ref: '#/components/schemas/ScheduleSlot' }
+        openSlots: { type: integer }
+        activityRating:
+          $ref: '#/components/schemas/AggregateRating'
+        coachRating:
+          $ref: '#/components/schemas/AggregateRating'
+    ActivityDetail:
+      allOf:
+        - { $ref: '#/components/schemas/ActivitySummary' }
+        - type: object
+          properties:
+            schedule:
+              type: array
+              items: { $ref: '#/components/schemas/ScheduleSlot' }
+    ScheduleSlot:
+      type: object
+      properties:
+        id: { type: string }
+        activityId: { type: string }
+        date: { type: string, format: date }
+        startTime: { type: string, example: '19:00' }
+        endTime: { type: string, example: '20:30' }
+        capacity: { type: integer }
+        registeredCount: { type: integer }
+        status: { type: string, enum: [scheduled, cancelled] }
+        coach: { type: string }
+        coachId: { type: string, description: 'Идентификатор тренера (если задан справочником)' }
+        coachRating:
+          $ref: '#/components/schemas/AggregateRating'
+        durationMin: { type: integer }
+        state: { $ref: '#/components/schemas/SlotState' }
+        seatsFree: { type: integer }
+    SlotView:
+      allOf:
+        - { $ref: '#/components/schemas/ScheduleSlot' }
+        - type: object
+          required: [state, seatsFree]
+    SlotState:
+      type: string
+      enum: [open, full, cancelled, past, closed]
+    Registration:
+      type: object
+      properties:
+        id: { type: string }
+        userId: { type: string }
+        slotId: { type: string }
+        name: { type: string }
+        phone: { type: string, nullable: true }
+        status: { type: string, enum: [confirmed, cancelled] }
+        createdAt: { type: string, format: date-time }
+        canceledAt: { type: string, format: date-time, nullable: true }
+    RegistrationView:
+      type: object
+      properties:
+        registration: { $ref: '#/components/schemas/Registration' }
+        slot: { $ref: '#/components/schemas/SlotView' }
+        activity: { $ref: '#/components/schemas/Activity' }
+        facility: { $ref: '#/components/schemas/SportFacility' }
+        sport: { $ref: '#/components/schemas/Sport' }
+        rating: { $ref: '#/components/schemas/Rating', description: 'Оценка, оставленная на этот слот (если есть)' }
+    AggregateRating:
+      type: object
+      description: Средняя оценка и число оценок (1–5).
+      properties:
+        avg: { type: number, example: 4.6 }
+        count: { type: integer }
+    Coach:
+      type: object
+      properties:
+        id: { type: string }
+        organizerId: { type: string }
+        name: { type: string }
+        sportId: { type: string, nullable: true }
+        bio: { type: string, nullable: true }
+        createdAt: { type: string, format: date-time }
+        rating:
+          $ref: '#/components/schemas/AggregateRating'
+    Rating:
+      type: object
+      properties:
+        id: { type: string }
+        userId: { type: string }
+        slotId: { type: string }
+        activityId: { type: string }
+        coachId: { type: string, nullable: true }
+        coachName: { type: string }
+        activityScore: { type: integer, minimum: 1, maximum: 5 }
+        coachScore: { type: integer, minimum: 1, maximum: 5, nullable: true }
+        comment: { type: string, nullable: true }
+        createdAt: { type: string, format: date-time }
+    Favorite:
+      type: object
+      properties:
+        id: { type: string }
+        userId: { type: string }
+        activityId: { type: string }
+        createdAt: { type: string, format: date-time }
+    Reminder:
+      type: object
+      properties:
+        id: { type: string }
+        userId: { type: string }
+        slotId: { type: string }
+        remindAt: { type: string, format: date-time }
+        sent: { type: boolean }
+        createdAt: { type: string, format: date-time }
+    UserProfile:
+      type: object
+      properties:
+        id: { type: string }
+        name: { type: string }
+        city: { type: string }
+        district: { type: string, nullable: true }
+        ageCategory: { $ref: '#/components/schemas/AgeCategory' }
+        preferredSports:
+          type: array
+          items: { type: string }
+        preferredTime: { $ref: '#/components/schemas/TimeOfDay' }
+        latitude: { type: number, description: 'Геолокация пользователя (широта, необязательно)' }
+        longitude: { type: number, description: 'Геолокация пользователя (долгота, необязательно)' }
+        createdAt: { type: string, format: date-time }
+        updatedAt: { type: string, format: date-time }
+    ActivityType:
+      type: string
+      enum: [section, training, competition, place]
+    AgeCategory:
+      type: string
+      enum: [child, teen, adult, senior, any]
+    SkillLevel:
+      type: string
+      enum: [beginner, intermediate, pro, any]
+    DayFilter:
+      type: string
+      enum: [any, today, tomorrow, week, weekend]
+    TimeOfDay:
+      type: string
+      enum: [morning, day, evening]
+    EventName:
+      type: string
+      enum: [bot_started, miniapp_opened, search_started, filter_applied, results_viewed, activity_opened, schedule_opened, registration_started, registration_completed, registration_failed, registration_cancelled, favorite_added, reminder_enabled]

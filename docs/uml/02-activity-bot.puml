@@ -1,0 +1,62 @@
+@startuml
+title Activity — клиентский путь бота «Спорт рядом»
+
+start
+:user /start (или bot_started);
+:sendGreeting → POST /api/me\n(создание профиля, кэш гео);
+:Главное меню;
+
+if (выбор действия) then (Поиск)
+  :askSport — Шаг 1: вид спорта;
+  :askDay — Шаг 2: день;
+  :askTimeOfDay — Шаг 3: время суток;
+  :askDistance — Шаг 4: радиус;
+  :runSearch — GET /api/activities\n(lat, lng, sportIds, day, timeOfDay, maxDistanceKm);
+  if (найдены занятия?) then (да)
+    :Список результатов (до 10);
+    repeat
+      :act:{id} — карточка занятия\nGET /api/activities/{id};
+      if (записаться?) then (да)
+        repeat :выбор открытого слота
+          :reg:{activityId}:{slotId} — экран подтверждения\n(тренер, оценки, цена, маршрут);
+          if (подтвердить?) then (да)
+            :regok — POST /api/registrations\n{slotId, name, consent:true};
+            :✅ Записаны — маршрут, координаты,\nмои записи;
+          else (нет)
+            :↩️ Отмена → меню;
+          endif
+        repeat while (другой слот?) is (да)
+      else (нет)
+        if (избранное?) then (да)
+          :fav — POST /api/favorites;
+        endif
+      endif
+    repeat while (назад к результатам?) is (да)
+  else (нет)
+    :«Ничего не найдено» → изменить параметры;
+  endif
+elseif (Популярное) then (да)
+  :runSearch (радиус 100 км);
+elseif (Мои записи) then (да)
+  :GET /api/me/registrations;
+  if (отменить запись?) then (да)
+    :cancel — POST /api/registrations/{id}/cancel;
+    :refreshMy;
+  endif
+elseif (Избранное) then (да)
+  :GET /api/me/favorites → карточки;
+  if (убрать?) then (да)
+    :unfav — DELETE /api/favorites/{id};
+  endif
+elseif (Профиль) then (да)
+  :POST /api/me → данные;
+  if (нет геолокации?) then (да)
+    :📍 Указать геолокацию\n(request_geo_location — нативный диалог MAX);
+    :location-вложение → PATCH /api/me\n{latitude, longitude};
+  endif
+elseif (Помощь) then (да)
+  :help-текст;
+endif
+
+stop
+@enduml

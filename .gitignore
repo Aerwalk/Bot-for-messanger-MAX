@@ -1,0 +1,23 @@
+node_modules/
+dist/
+build/
+*.tsbuildinfo
+
+# Локальные секреты и окружение
+.env
+.env.local
+
+# Runtime-данные (БД генерируется из seed при первом запуске)
+backend/data/
+!backend/data/.gitkeep
+
+# Инструменты
+.idea/
+.vscode/
+.venv/
+__pycache__/
+*.log
+.DS_Store
+
+# Примеры/служебные файлы, не входящие в проект
+main.py

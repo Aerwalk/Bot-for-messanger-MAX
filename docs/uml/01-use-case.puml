@@ -1,0 +1,76 @@
+@startuml
+left to right direction
+skinparam packageStyle rectangle
+skinparam actorStyle awesome
+skinparam shadowing false
+title Use Case — «Спорт рядом»: клиент, организатор, системные акторы
+
+actor "Пользователь MAX" as User
+actor "Организатор" as Org
+actor "Клиент MAX / Bot API" as Max
+
+rectangle "Бот «Спорт рядом» (чат)" {
+  usecase "Запустить бота\n(/start, bot_started)" as UC_START
+  usecase "Искать занятие\n(4 шага: спорт → день → время → радиус)" as UC_SEARCH
+  usecase "Показать популярное рядом" as UC_POP
+  usecase "Открыть карточку занятия\n(тренер, оценки, расписание, маршрут)" as UC_CARD
+  usecase "Записаться на занятие\n(подтверждение + маршрут)" as UC_REG
+  usecase "Отменить запись" as UC_CANCEL
+  usecase "Мои записи" as UC_MY
+  usecase "Избранное" as UC_FAV
+  usecase "Профиль\n(геолокация, район, спорт-предпочтения)" as UC_PROF
+  usecase "Получить напоминание о занятии" as UC_REM
+}
+
+rectangle "Мини-приложение MAX (SPA)" {
+  usecase "Найти занятия рядом\n(фильтры, результаты)" as MA_SEARCH
+  usecase "Открыть карточку\nрасписание/тренер/оценки" as MA_CARD
+  usecase "Записаться на слот" as MA_REG
+  usecase "Включить напоминание" as MA_REM
+  usecase "Мои записи:\nотмена + оценка тренировки/тренера" as MA_MY
+  usecase "Профиль:\nрайон, спорт-предпочтения, геолокация (navigator.geolocation)" as MA_PROF
+}
+
+rectangle "Админка организатора (SPA :8081)" {
+  usecase "Войти (Bearer-токен)" as A_LOGIN
+  usecase "Мероприятия: CRUD + расписание слотов" as A_ACT
+  usecase "Тренеры: создание/просмотр" as A_COACH
+  usecase "Локации и виды спорта: справочники" as A_DICT
+  usecase "Записи: просмотр\n(клиент, тренер, оценка)" as A_REGS
+}
+
+User --> UC_START
+User --> UC_SEARCH
+User --> UC_POP
+User --> UC_CARD
+User --> UC_REG
+User --> UC_CANCEL
+User --> UC_MY
+User --> UC_FAV
+User --> UC_PROF
+
+User --> MA_SEARCH
+User --> MA_CARD
+User --> MA_REG
+User --> MA_REM
+User --> MA_MY
+User --> MA_PROF
+
+Org --> A_LOGIN
+Org --> A_ACT
+Org --> A_COACH
+Org --> A_DICT
+Org --> A_REGS
+
+Max -> UC_REM : отправляет напоминание\n(sendMessageToUser)
+Max -> UC_START : бота запускает клиент
+Max -> A_LOGIN : нет (админка веб-UI)
+
+UC_CARD ..> UC_REG : <<extend>>
+UC_MY ..> UC_CANCEL : <<extend>>
+MA_MY ..> MA_REG : <<include>>
+MA_REG ..> MA_REM : <<extend>>
+
+note bottom of UC_REM: опрос GET /api/reminders/due\nкаждые 60 c (bot poll)
+note bottom of A_REGS: результаты с build_reg_view:\nзапись + слот (рейтинг тренера) + клиент + оценка
+@enduml

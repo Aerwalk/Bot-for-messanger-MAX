@@ -1,0 +1,97 @@
+
+#   docker compose up -d --build     # сборка + запуск
+#   docker compose ps                # статус
+#   docker compose logs -f backend   # логи API
+#   curl http://localhost:8080/api/health
+#
+# Переменные окружения подхватываются из .env (см. .env.example).
+# Если MAX_BOT_TOKEN не задан — бот работает в режиме ожидания, API доступны сразу.
+
+name: sport-nearby
+
+services:
+  db:
+    image: postgres:16-alpine
+    container_name: sport-nearby-db
+    hostname: db
+    environment:
+      POSTGRES_USER: sport
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-sport}
+      POSTGRES_DB: sport
+    volumes:
+      - sport-nearby-pgdata:/var/lib/postgresql/data
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U sport -d sport"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      start_period: 5s
+
+  backend:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: sport-nearby-backend:0.1.0
+    container_name: sport-nearby-backend
+    hostname: backend
+    environment:
+      PORT: "8080"
+      DEMO_MODE: "true"
+      SERVE_STATIC: "false"
+      DATA_DIR: /data
+      MAX_BOT_TOKEN: ${MAX_BOT_TOKEN:-}
+      DATABASE_URL: postgresql+psycopg://sport:${POSTGRES_PASSWORD:-sport}@db:5432/sport
+      ADMIN_LOGIN: ${ADMIN_LOGIN:-admin}
+      ADMIN_PASSWORD: ${ADMIN_PASSWORD:-admin123}
+    volumes:
+      - sport-nearby-data:/data
+    ports:
+      - "8080:8080"
+    depends_on:
+      db:
+        condition: service_healthy
+    restart: unless-stopped
+    healthcheck:
+      # python есть в образе — проверяем /api/health без дополнительных пакетов
+      test:
+        - CMD
+        - python
+        - -c
+        - "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8080/api/health', timeout=3)"
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+
+  bot:
+    build:
+      context: .
+      dockerfile: docker/bot.Dockerfile
+    image: sport-nearby-bot:0.1.0
+    container_name: sport-nearby-bot
+    environment:
+      MAX_BOT_TOKEN: ${MAX_BOT_TOKEN:-}
+      BACKEND_URL: http://backend:8080
+      BOT_POLL_INTERVAL_MS: "60000"
+    depends_on:
+      backend:
+        condition: service_healthy
+    restart: unless-stopped
+
+  admin:
+    build:
+      context: .
+      dockerfile: docker/admin.Dockerfile
+    image: sport-nearby-admin:0.1.0
+    container_name: sport-nearby-admin
+    ports:
+      - "8081:80"
+    depends_on:
+      backend:
+        condition: service_healthy
+    restart: unless-stopped
+
+volumes:
+  sport-nearby-data:
+  sport-nearby-pgdata:

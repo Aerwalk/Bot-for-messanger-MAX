@@ -1,0 +1,45 @@
+@startuml
+title State — жизненный цикл слотов и записей
+
+state "Slot" as SlotSt {
+  state scheduled <<s>>
+  state cancelledSlot <<s>>
+  state opened
+  state full
+  state past
+
+  [*] --> scheduled
+  scheduled : status = 'scheduled'
+  scheduled --> cancelledSlot : admin отменяет слот\n(status = 'cancelled')
+  scheduled --> opened : дата >= сегодня и\nregisteredCount < capacity
+  scheduled --> past : startTime < now (МСК)
+  opened --> full : registeredCount >= capacity
+  opened --> past : стартовало занятие
+  full --> opened : отмена записи\n(registeredCount уменьшается)
+  cancelledSlot --> [*]
+  past --> [*]
+}
+
+state "Registration" as RegSt {
+  state confirmed <<s>>
+  state cancelled
+
+  [*] --> confirmed
+  confirmed : POST /api/registrations\n{slotId, name, consent:true}
+  confirmed : инкремент registeredCount
+  confirmed --> cancelled : POST /api/registrations/{id}/cancel
+  cancelled : терминальное, повторная отмена\n→ ALREADY_CANCELLED (409)
+  cancelled --> [*]
+}
+
+note bottom of SlotSt
+  full или opened по правилу get_slot_state:
+  cancelled → past → full → open
+end note
+
+note bottom of RegSt
+  дубль confirmed (user+slot)
+  → DUPLICATE (409)
+end note
+
+@enduml
